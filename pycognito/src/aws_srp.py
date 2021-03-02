@@ -37,8 +37,8 @@ INFO_BITS = bytearray("Caldera Derived Key", "utf-8")
 
 def hash_sha256(buf):
     """AuthenticationHelper.hash"""
-    value = hashlib.sha256(buf).hexdigest()
-    return (64 - len(value)) * "0" + value
+    a = hashlib.sha256(buf).hexdigest()
+    return (64 - len(a)) * "0" + a
 
 
 def hex_hash(hex_string):
@@ -130,8 +130,8 @@ class AWSSRP:
             client if client else boto3.client("cognito-idp", region_name=pool_region)
         )
         self.big_n = hex_to_long(N_HEX)
-        self.val_g = hex_to_long(G_HEX)
-        self.val_k = hex_to_long(hex_hash("00" + N_HEX + "0" + G_HEX))
+        self.g = hex_to_long(G_HEX)
+        self.k = hex_to_long(hex_hash("00" + N_HEX + "0" + G_HEX))
         self.small_a_value = self.generate_random_small_a()
         self.large_a_value = self.calculate_a()
 
@@ -150,7 +150,7 @@ class AWSSRP:
         :param {Long integer} a Randomly generated small A.
         :return {Long integer} Computed large A.
         """
-        big_a = pow(self.val_g, self.small_a_value, self.big_n)
+        big_a = pow(self.g, self.small_a_value, self.big_n)
         # safety check
         if (big_a % self.big_n) == 0:
             raise ValueError("Safety check for A failed")
@@ -172,8 +172,8 @@ class AWSSRP:
         username_password_hash = hash_sha256(username_password.encode("utf-8"))
 
         x_value = hex_to_long(hex_hash(pad_hex(salt) + username_password_hash))
-        g_mod_pow_xn = pow(self.val_g, x_value, self.big_n)
-        int_value2 = server_b_value - self.val_k * g_mod_pow_xn
+        g_mod_pow_xn = pow(self.g, x_value, self.big_n)
+        int_value2 = server_b_value - self.k * g_mod_pow_xn
         s_value = pow(int_value2, self.small_a_value + u_value * x_value, self.big_n)
         hkdf = compute_hkdf(
             bytearray.fromhex(pad_hex(s_value)),
