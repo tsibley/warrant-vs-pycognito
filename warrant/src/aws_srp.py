@@ -12,7 +12,7 @@ import six
 from .exceptions import ForceChangePasswordException
 
 # https://github.com/aws/amazon-cognito-identity-js/blob/master/src/AuthenticationHelper.js#L22
-n_hex = (
+N_HEX = (
     "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1"
     + "29024E088A67CC74020BBEA63B139B22514A08798E3404DD"
     + "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245"
@@ -31,8 +31,8 @@ n_hex = (
     + "43DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF"
 )
 # https://github.com/aws/amazon-cognito-identity-js/blob/master/src/AuthenticationHelper.js#L49
-g_hex = "2"
-info_bits = bytearray("Caldera Derived Key", "utf-8")
+G_HEX = "2"
+INFO_BITS = bytearray("Caldera Derived Key", "utf-8")
 
 
 def hash_sha256(buf):
@@ -84,7 +84,7 @@ def compute_hkdf(ikm, salt):
     @private
     """
     prk = hmac.new(salt, ikm, hashlib.sha256).digest()
-    info_bits_update = info_bits + bytearray(chr(1), "utf-8")
+    info_bits_update = INFO_BITS + bytearray(chr(1), "utf-8")
     hmac_hash = hmac.new(prk, info_bits_update, hashlib.sha256).digest()
     return hmac_hash[:16]
 
@@ -129,9 +129,9 @@ class AWSSRP(object):
         self.client = (
             client if client else boto3.client("cognito-idp", region_name=pool_region)
         )
-        self.big_n = hex_to_long(n_hex)
-        self.g = hex_to_long(g_hex)
-        self.k = hex_to_long(hex_hash("00" + n_hex + "0" + g_hex))
+        self.big_n = hex_to_long(N_HEX)
+        self.g = hex_to_long(G_HEX)
+        self.k = hex_to_long(hex_hash("00" + N_HEX + "0" + G_HEX))
         self.small_a_value = self.generate_random_small_a()
         self.large_a_value = self.calculate_a()
 
