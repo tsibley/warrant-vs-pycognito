@@ -1,0 +1,807 @@
+diff --git a/warrant/requirements.txt b/pycognito/requirements.txt
+index 8756329..f724539 100644
+--- a/warrant/requirements.txt
++++ b/pycognito/requirements.txt
+@@ -1,5 +1,4 @@
+ boto3>=1.10.49
+-envs~=1.3
+-python-jose[pycryptodome]~=3.1.0
++envs>=1.3
++python-jose[cryptography]>=3.2.0
+ requests>=2.22.0
+-six>=1.13.0
+diff --git a/warrant/requirements_test.txt b/pycognito/requirements_test.txt
+index 0eb2ead..b490a63 100644
+--- a/warrant/requirements_test.txt
++++ b/pycognito/requirements_test.txt
+@@ -1,4 +1,6 @@
+-botocore~=1.13.49
+-coverage~=5.0.2
+-mock~=3.0.5
+-nose~=1.3.7
+\ No newline at end of file
++mock==4.0.3
++coverage==5.5
++black==20.8b1
++flake8==3.8.4
++pylint==2.7.2
++pytest==6.2.2
+\ No newline at end of file
+diff --git a/warrant/src/__init__.py b/pycognito/src/__init__.py
+index c008459..ac91e9b 100644
+--- a/warrant/src/__init__.py
++++ b/pycognito/src/__init__.py
+@@ -1,11 +1,11 @@
+ import ast
+-import boto3
+ import datetime
+ import re
+-import requests
+ 
++import boto3
+ from envs import env
+-from jose import jwt, JWTError
++from jose import JWTError, jwt
++import requests
+ 
+ from .aws_srp import AWSSRP
+ from .exceptions import TokenVerificationException
+@@ -15,9 +15,9 @@ def cognito_to_dict(attr_list, attr_map=None):
+     if attr_map is None:
+         attr_map = {}
+     attr_dict = dict()
+-    for a in attr_list:
+-        name = a.get("Name")
+-        value = a.get("Value")
++    for attr in attr_list:
++        name = attr.get("Name")
++        value = attr.get("Value")
+         if value in ["true", "false"]:
+             value = ast.literal_eval(value.capitalize())
+         name = attr_map.get(name, name)
+@@ -28,14 +28,13 @@ def cognito_to_dict(attr_list, attr_map=None):
+ def dict_to_cognito(attributes, attr_map=None):
+     """
+     :param attributes: Dictionary of User Pool attribute names/values
+-    :param attr_map: Dictonnary with attributes mapping
+     :return: list of User Pool attribute formatted dicts: {'Name': <attr_name>, 'Value': <attr_value>}
+     """
+     if attr_map is None:
+         attr_map = {}
+-    for k, v in attr_map.items():
+-        if v in attributes.keys():
+-            attributes[k] = attributes.pop(v)
++    for key, value in attr_map.items():
++        if value in attributes.keys():
++            attributes[key] = attributes.pop(value)
+ 
+     return [{"Name": key, "Value": value} for key, value in attributes.items()]
+ 
+@@ -45,8 +44,9 @@ def camel_to_snake(camel_str):
+     :param camel_str: string
+     :return: string converted from a CamelCase to a snake_case
+     """
+-    s1 = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", camel_str)
+-    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
++    return re.sub(
++        "([a-z0-9])([A-Z])", r"\1_\2", re.sub("(.)([A-Z][a-z]+)", r"\1_\2", camel_str)
++    ).lower()
+ 
+ 
+ def snake_to_camel(snake_str):
+@@ -58,7 +58,7 @@ def snake_to_camel(snake_str):
+     return "".join(x.title() for x in components)
+ 
+ 
+-class UserObj(object):
++class UserObj:
+     def __init__(
+         self, username, attribute_list, cognito_obj, metadata=None, attr_map=None
+     ):
+@@ -68,7 +68,6 @@ class UserObj(object):
+         :param metadata: Dictionary of User metadata
+         """
+         self.username = username
+-        self.pk = username
+         self._cognito = cognito_obj
+         self._attr_map = {} if attr_map is None else attr_map
+         self._data = cognito_to_dict(attribute_list, self._attr_map)
+@@ -90,12 +89,13 @@ class UserObj(object):
+             return self._data.get(name)
+         if name in list(self.__dict__.get("_metadata", {}).keys()):
+             return self._metadata.get(name)
++        raise AttributeError(name)
+ 
+     def __setattr__(self, name, value):
+         if name in list(self.__dict__.get("_data", {}).keys()):
+             self._data[name] = value
+         else:
+-            super(UserObj, self).__setattr__(name, value)
++            super().__setattr__(name, value)
+ 
+     def save(self, admin=False):
+         if admin:
+@@ -110,7 +110,7 @@ class UserObj(object):
+         self._cognito.delete_user()
+ 
+ 
+-class GroupObj(object):
++class GroupObj:
+     def __init__(self, group_data, cognito_obj):
+         """
+         :param group_data: a dictionary with information about a group
+@@ -134,7 +134,8 @@ class GroupObj(object):
+         )
+ 
+ 
+-class Cognito(object):
++class Cognito:
++
+     user_class = UserObj
+     group_class = GroupObj
+ 
+@@ -150,6 +151,8 @@ class Cognito(object):
+         client_secret=None,
+         access_key=None,
+         secret_key=None,
++        session=None,
++        botocore_config=None,
+     ):
+         """
+         :param user_pool_id: Cognito User Pool ID
+@@ -160,6 +163,8 @@ class Cognito(object):
+         :param access_token: Access Token returned by authentication
+         :param access_key: AWS IAM access key
+         :param secret_key: AWS IAM secret key
++        :param session: Boto3 client session
++        :param botocore_config: Botocore Config object for the client
+         """
+ 
+         self.user_pool_id = user_pool_id
+@@ -173,6 +178,8 @@ class Cognito(object):
+         self.refresh_token = refresh_token
+         self.client_secret = client_secret
+         self.token_type = None
++        self.id_claims = None
++        self.access_claims = None
+         self.custom_attributes = None
+         self.base_attributes = None
+         self.pool_jwk = None
+@@ -183,24 +190,30 @@ class Cognito(object):
+             boto3_client_kwargs["aws_secret_access_key"] = secret_key
+         if self.user_pool_region:
+             boto3_client_kwargs["region_name"] = self.user_pool_region
++        if botocore_config:
++            boto3_client_kwargs["config"] = botocore_config
+ 
++        if session:
++            self.client = session.client("cognito-idp", **boto3_client_kwargs)
++        else:
+             self.client = boto3.client("cognito-idp", **boto3_client_kwargs)
+ 
++    @property
++    def user_pool_url(self):
++        return f"https://cognito-idp.{self.user_pool_region}.amazonaws.com/{self.user_pool_id}"
++
+     def get_keys(self):
+-
+         if self.pool_jwk:
+             return self.pool_jwk
+-        else:
++
+         # Check for the dictionary in environment variables.
+         pool_jwk_env = env("COGNITO_JWKS", {}, var_type="dict")
+-            if len(pool_jwk_env.keys()) > 0:
++        if pool_jwk_env:
+             self.pool_jwk = pool_jwk_env
+-                return self.pool_jwk
+         # If it is not there use the requests library to get it
++        else:
+             self.pool_jwk = requests.get(
+-                "https://cognito-idp.{}.amazonaws.com/{}/.well-known/jwks.json".format(
+-                    self.user_pool_region, self.user_pool_id
+-                )
++                f"{self.user_pool_url}/.well-known/jwks.json"
+             ).json()
+         return self.pool_jwk
+ 
+@@ -209,24 +222,47 @@ class Cognito(object):
+         key = list(filter(lambda x: x.get("kid") == kid, keys))
+         return key[0]
+ 
++    def verify_tokens(self):
++        """
++        Verify the current id_token and access_token.  An exception will be
++        thrown if they do not pass verification.  It can be useful to call this
++        method after creating a Cognito instance where you've provided
++        externally-remembered token values.
++        """
++        self.verify_token(self.id_token, "id_token", "id")
++        self.verify_token(self.access_token, "access_token", "access")
++
+     def verify_token(self, token, id_name, token_use):
++        # https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html
++
+         kid = jwt.get_unverified_header(token).get("kid")
+-        unverified_claims = jwt.get_unverified_claims(token)
+-        token_use_verified = unverified_claims.get("token_use") == token_use
+-        if not token_use_verified:
+-            raise TokenVerificationException("Your {} token use could not be verified.")
+         hmac_key = self.get_key(kid)
+         try:
+             verified = jwt.decode(
+                 token,
+                 hmac_key,
+                 algorithms=["RS256"],
+-                audience=unverified_claims.get("aud"),
+-                issuer=unverified_claims.get("iss"),
++                audience=self.client_id,
++                issuer=self.user_pool_url,
++                options={
++                    "require_aud": token_use != "access",
++                    "require_iss": True,
++                    "require_exp": True,
++                },
+             )
+         except JWTError:
+-            raise TokenVerificationException("Your {} token could not be verified.")
++            raise TokenVerificationException(
++                f"Your {id_name!r} token could not be verified."
++            ) from None
++
++        token_use_verified = verified.get("token_use") == token_use
++        if not token_use_verified:
++            raise TokenVerificationException(
++                f"Your {id_name!r} token use ({token_use!r}) could not be verified."
++            )
++
+         setattr(self, id_name, token)
++        setattr(self, f"{token_use}_claims", verified)
+         return verified
+ 
+     def get_user_obj(
+@@ -287,7 +323,7 @@ class Cognito(object):
+             expired = False
+         return expired
+ 
+-    def add_base_attributes(self, **kwargs):
++    def set_base_attributes(self, **kwargs):
+         self.base_attributes = kwargs
+ 
+     def add_custom_attributes(self, **kwargs):
+@@ -322,6 +358,9 @@ class Cognito(object):
+             }
+         }
+         """
++        if self.base_attributes is None:
++            attributes = {}
++        else:
+             attributes = self.base_attributes.copy()
+         if self.custom_attributes:
+             attributes.update(self.custom_attributes)
+@@ -388,13 +428,7 @@ class Cognito(object):
+             AuthFlow="ADMIN_NO_SRP_AUTH",
+             AuthParameters=auth_params,
+         )
+-
+-        self.verify_token(tokens["AuthenticationResult"]["IdToken"], "id_token", "id")
+-        self.refresh_token = tokens["AuthenticationResult"]["RefreshToken"]
+-        self.verify_token(
+-            tokens["AuthenticationResult"]["AccessToken"], "access_token", "access"
+-        )
+-        self.token_type = tokens["AuthenticationResult"]["TokenType"]
++        self._set_tokens(tokens)
+ 
+     def authenticate(self, password):
+         """
+@@ -411,18 +445,13 @@ class Cognito(object):
+             client_secret=self.client_secret,
+         )
+         tokens = aws.authenticate_user()
+-        self.verify_token(tokens["AuthenticationResult"]["IdToken"], "id_token", "id")
+-        self.refresh_token = tokens["AuthenticationResult"]["RefreshToken"]
+-        self.verify_token(
+-            tokens["AuthenticationResult"]["AccessToken"], "access_token", "access"
+-        )
+-        self.token_type = tokens["AuthenticationResult"]["TokenType"]
++        self._set_tokens(tokens)
+ 
+     def new_password_challenge(self, password, new_password):
+         """
+         Respond to the new password challenge using the SRP protocol
+         :param password: The user's current passsword
+-        :param new_password: The user's new passsword
++        :param password: The user's new passsword
+         """
+         aws = AWSSRP(
+             username=self.username,
+@@ -433,10 +462,7 @@ class Cognito(object):
+             client_secret=self.client_secret,
+         )
+         tokens = aws.set_new_password_challenge(new_password)
+-        self.id_token = tokens["AuthenticationResult"]["IdToken"]
+-        self.refresh_token = tokens["AuthenticationResult"]["RefreshToken"]
+-        self.access_token = tokens["AuthenticationResult"]["AccessToken"]
+-        self.token_type = tokens["AuthenticationResult"]["TokenType"]
++        self._set_tokens(tokens)
+ 
+     def logout(self):
+         """
+@@ -499,12 +525,21 @@ class Cognito(object):
+         """
+         Returns all users for a user pool. Returns instances of the
+         self.user_class.
+-        :param attr_map:
+-        :return:
++        :param attr_map: Dictionary map from Cognito attributes to attribute
++        names we would like to show to our users
++        :return: list of self.user_class
+         """
+-        kwargs = {"UserPoolId": self.user_pool_id}
++        response = self.client.list_users(UserPoolId=self.user_pool_id)
++        user_list = response.get("Users")
++        page_token = response.get("PaginationToken")
++
++        while page_token:
++            response = self.client.list_users(
++                UserPoolId=self.user_pool_id, PaginationToken=page_token
++            )
++            user_list.extend(response.get("Users"))
++            page_token = response.get("PaginationToken")
+ 
+-        response = self.client.list_users(**kwargs)
+         return [
+             self.get_user_obj(
+                 user.get("Username"),
+@@ -512,7 +547,7 @@ class Cognito(object):
+                 metadata={"username": user.get("Username")},
+                 attr_map=attr_map,
+             )
+-            for user in response.get("Users")
++            for user in user_list
+         ]
+ 
+     def admin_get_user(self, attr_map=None):
+@@ -595,18 +630,10 @@ class Cognito(object):
+         self._add_secret_hash(auth_params, "SECRET_HASH")
+         refresh_response = self.client.initiate_auth(
+             ClientId=self.client_id,
+-            AuthFlow="REFRESH_TOKEN",
++            AuthFlow="REFRESH_TOKEN_AUTH",
+             AuthParameters=auth_params,
+         )
+-
+-        self._set_attributes(
+-            refresh_response,
+-            {
+-                "access_token": refresh_response["AuthenticationResult"]["AccessToken"],
+-                "id_token": refresh_response["AuthenticationResult"]["IdToken"],
+-                "token_type": refresh_response["AuthenticationResult"]["TokenType"],
+-            },
+-        )
++        self._set_tokens(refresh_response)
+ 
+     def initiate_forgot_password(self):
+         """
+@@ -625,6 +652,13 @@ class Cognito(object):
+             UserPoolId=self.user_pool_id, Username=self.username
+         )
+ 
++    def admin_reset_password(self, username, client_metadata=None):
++        self.client.admin_reset_user_password(
++            UserPoolId=self.user_pool_id,
++            Username=username,
++            ClientMetatada=client_metadata,
++        )
++
+     def confirm_forgot_password(self, confirmation_code, password):
+         """
+         Allows a user to enter a code provided when they reset their password
+@@ -666,6 +700,19 @@ class Cognito(object):
+             )
+             parameters[key] = secret_hash
+ 
++    def _set_tokens(self, tokens):
++        """
++        Helper function to verify and set token attributes based on a Cognito
++        AuthenticationResult.
++        """
++        self.verify_token(tokens["AuthenticationResult"]["IdToken"], "id_token", "id")
++        if "RefreshToken" in tokens["AuthenticationResult"]:
++            self.refresh_token = tokens["AuthenticationResult"]["RefreshToken"]
++        self.verify_token(
++            tokens["AuthenticationResult"]["AccessToken"], "access_token", "access"
++        )
++        self.token_type = tokens["AuthenticationResult"]["TokenType"]
++
+     def _set_attributes(self, response, attribute_dict):
+         """
+         Set user attributes based on response code
+@@ -676,8 +723,8 @@ class Cognito(object):
+             "HTTPStatusCode", response["ResponseMetadata"]["HTTPStatusCode"]
+         )
+         if status_code == 200:
+-            for k, v in attribute_dict.items():
+-                setattr(self, k, v)
++            for key, value in attribute_dict.items():
++                setattr(self, key, value)
+ 
+     def get_group(self, group_name):
+         """
+@@ -698,3 +745,81 @@ class Cognito(object):
+         """
+         response = self.client.list_groups(UserPoolId=self.user_pool_id)
+         return [self.get_group_obj(group_data) for group_data in response.get("Groups")]
++
++    def admin_add_user_to_group(self, username, group_name):
++        """
++        Add the user to the specified group
++        :param username: the username
++        :param group_name: the name of the group to add the user to
++        :return:
++        """
++        self.client.admin_add_user_to_group(
++            UserPoolId=self.user_pool_id,
++            Username=username,
++            GroupName=group_name,
++        )
++
++    def admin_remove_user_from_group(self, username, group_name):
++        """
++        Remove the user from the specified group
++        :param username: the username
++        :param group_name: the name of the group to remove the user from
++        :return:
++        """
++        self.client.admin_remove_user_from_group(
++            UserPoolId=self.user_pool_id,
++            Username=username,
++            GroupName=group_name,
++        )
++
++    def admin_list_groups_for_user(self, username):
++        """
++        Get the list of groups a user belongs to
++        :param username:
++        :return: List
++        """
++
++        def process_groups_response(groups_response):
++            groups = []
++            for group_dict in groups_response["Groups"]:
++                groups.append(group_dict["GroupName"])
++            return groups
++
++        groups_response = self.client.admin_list_groups_for_user(
++            Username=username, UserPoolId=self.user_pool_id, Limit=60
++        )
++        user_groups = process_groups_response(groups_response)
++
++        while "NextToken" in groups_response.keys():
++            groups_response = self.client.admin_list_groups_for_user(
++                Username=username,
++                UserPoolId=self.user_pool_id,
++                Limit=60,
++                NextToken=groups_response["NextToken"],
++            )
++            new_groups = process_groups_response(groups_response)
++            user_groups.extend(new_groups)
++
++        return user_groups
++
++    def admin_enable_user(self, username):
++        """
++        Enable a user
++        :param username:
++        :return:
++        """
++        self.client.admin_enable_user(
++            UserPoolId=self.user_pool_id,
++            Username=username,
++        )
++
++    def admin_disable_user(self, username):
++        """
++        Disable a user
++        :param username:
++        :return:
++        """
++        self.client.admin_disable_user(
++            UserPoolId=self.user_pool_id,
++            Username=self.username,
++        )
+diff --git a/warrant/src/aws_srp.py b/pycognito/src/aws_srp.py
+index dd95dfc..6077067 100644
+--- a/warrant/src/aws_srp.py
++++ b/pycognito/src/aws_srp.py
+@@ -3,42 +3,42 @@ import binascii
+ import datetime
+ import hashlib
+ import hmac
++import os
+ import re
+ 
+ import boto3
+-import os
+ import six
+ 
+ from .exceptions import ForceChangePasswordException
+ 
+ # https://github.com/aws/amazon-cognito-identity-js/blob/master/src/AuthenticationHelper.js#L22
+-n_hex = (
++N_HEX = (
+     "FFFFFFFFFFFFFFFFC90FDAA22168C234C4C6628B80DC1CD1"
+-    + "29024E088A67CC74020BBEA63B139B22514A08798E3404DD"
+-    + "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245"
+-    + "E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED"
+-    + "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3D"
+-    + "C2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F"
+-    + "83655D23DCA3AD961C62F356208552BB9ED529077096966D"
+-    + "670C354E4ABC9804F1746C08CA18217C32905E462E36CE3B"
+-    + "E39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9"
+-    + "DE2BCBF6955817183995497CEA956AE515D2261898FA0510"
+-    + "15728E5A8AAAC42DAD33170D04507A33A85521ABDF1CBA64"
+-    + "ECFB850458DBEF0A8AEA71575D060C7DB3970F85A6E1E4C7"
+-    + "ABF5AE8CDB0933D71E8C94E04A25619DCEE3D2261AD2EE6B"
+-    + "F12FFA06D98A0864D87602733EC86A64521F2B18177B200C"
+-    + "BBE117577A615D6C770988C0BAD946E208E24FA074E5AB31"
+-    + "43DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF"
++    "29024E088A67CC74020BBEA63B139B22514A08798E3404DD"
++    "EF9519B3CD3A431B302B0A6DF25F14374FE1356D6D51C245"
++    "E485B576625E7EC6F44C42E9A637ED6B0BFF5CB6F406B7ED"
++    "EE386BFB5A899FA5AE9F24117C4B1FE649286651ECE45B3D"
++    "C2007CB8A163BF0598DA48361C55D39A69163FA8FD24CF5F"
++    "83655D23DCA3AD961C62F356208552BB9ED529077096966D"
++    "670C354E4ABC9804F1746C08CA18217C32905E462E36CE3B"
++    "E39E772C180E86039B2783A2EC07A28FB5C55DF06F4C52C9"
++    "DE2BCBF6955817183995497CEA956AE515D2261898FA0510"
++    "15728E5A8AAAC42DAD33170D04507A33A85521ABDF1CBA64"
++    "ECFB850458DBEF0A8AEA71575D060C7DB3970F85A6E1E4C7"
++    "ABF5AE8CDB0933D71E8C94E04A25619DCEE3D2261AD2EE6B"
++    "F12FFA06D98A0864D87602733EC86A64521F2B18177B200C"
++    "BBE117577A615D6C770988C0BAD946E208E24FA074E5AB31"
++    "43DB5BFCE0FD108E4B82D120A93AD2CAFFFFFFFFFFFFFFFF"
+ )
+ # https://github.com/aws/amazon-cognito-identity-js/blob/master/src/AuthenticationHelper.js#L49
+-g_hex = "2"
+-info_bits = bytearray("Caldera Derived Key", "utf-8")
++G_HEX = "2"
++INFO_BITS = bytearray("Caldera Derived Key", "utf-8")
+ 
+ 
+ def hash_sha256(buf):
+     """AuthenticationHelper.hash"""
+-    a = hashlib.sha256(buf).hexdigest()
+-    return (64 - len(a)) * "0" + a
++    value = hashlib.sha256(buf).hexdigest()
++    return (64 - len(value)) * "0" + value
+ 
+ 
+ def hex_hash(hex_string):
+@@ -84,7 +84,7 @@ def compute_hkdf(ikm, salt):
+     @private
+     """
+     prk = hmac.new(salt, ikm, hashlib.sha256).digest()
+-    info_bits_update = info_bits + bytearray(chr(1), "utf-8")
++    info_bits_update = INFO_BITS + bytearray(chr(1), "utf-8")
+     hmac_hash = hmac.new(prk, info_bits_update, hashlib.sha256).digest()
+     return hmac_hash[:16]
+ 
+@@ -100,7 +100,7 @@ def calculate_u(big_a, big_b):
+     return hex_to_long(u_hex_hash)
+ 
+ 
+-class AWSSRP(object):
++class AWSSRP:
+ 
+     NEW_PASSWORD_REQUIRED_CHALLENGE = "NEW_PASSWORD_REQUIRED"
+     PASSWORD_VERIFIER_CHALLENGE = "PASSWORD_VERIFIER"
+@@ -129,9 +129,9 @@ class AWSSRP(object):
+         self.client = (
+             client if client else boto3.client("cognito-idp", region_name=pool_region)
+         )
+-        self.big_n = hex_to_long(n_hex)
+-        self.g = hex_to_long(g_hex)
+-        self.k = hex_to_long(hex_hash("00" + n_hex + "0" + g_hex))
++        self.big_n = hex_to_long(N_HEX)
++        self.val_g = hex_to_long(G_HEX)
++        self.val_k = hex_to_long(hex_hash("00" + N_HEX + "0" + G_HEX))
+         self.small_a_value = self.generate_random_small_a()
+         self.large_a_value = self.calculate_a()
+ 
+@@ -150,7 +150,7 @@ class AWSSRP(object):
+         :param {Long integer} a Randomly generated small A.
+         :return {Long integer} Computed large A.
+         """
+-        big_a = pow(self.g, self.small_a_value, self.big_n)
++        big_a = pow(self.val_g, self.small_a_value, self.big_n)
+         # safety check
+         if (big_a % self.big_n) == 0:
+             raise ValueError("Safety check for A failed")
+@@ -172,8 +172,8 @@ class AWSSRP(object):
+         username_password_hash = hash_sha256(username_password.encode("utf-8"))
+ 
+         x_value = hex_to_long(hex_hash(pad_hex(salt) + username_password_hash))
+-        g_mod_pow_xn = pow(self.g, x_value, self.big_n)
+-        int_value2 = server_b_value - self.k * g_mod_pow_xn
++        g_mod_pow_xn = pow(self.val_g, x_value, self.big_n)
++        int_value2 = server_b_value - self.val_k * g_mod_pow_xn
+         s_value = pow(int_value2, self.small_a_value + u_value * x_value, self.big_n)
+         hkdf = compute_hkdf(
+             bytearray.fromhex(pad_hex(s_value)),
+@@ -203,6 +203,7 @@ class AWSSRP(object):
+         return base64.standard_b64encode(hmac_obj.digest()).decode("utf-8")
+ 
+     def process_challenge(self, challenge_parameters):
++        internal_username = challenge_parameters["USERNAME"]
+         user_id_for_srp = challenge_parameters["USER_ID_FOR_SRP"]
+         salt_hex = challenge_parameters["SALT"]
+         srp_b_hex = challenge_parameters["SRP_B"]
+@@ -227,7 +229,7 @@ class AWSSRP(object):
+         signature_string = base64.standard_b64encode(hmac_obj.digest())
+         response = {
+             "TIMESTAMP": timestamp,
+-            "USERNAME": user_id_for_srp,
++            "USERNAME": internal_username,
+             "PASSWORD_CLAIM_SECRET_BLOCK": secret_block_b64,
+             "PASSWORD_CLAIM_SIGNATURE": signature_string.decode("utf-8"),
+         }
+@@ -235,7 +237,7 @@ class AWSSRP(object):
+             response.update(
+                 {
+                     "SECRET_HASH": self.get_secret_hash(
+-                        self.username, self.client_id, self.client_secret
++                        internal_username, self.client_id, self.client_secret
+                     )
+                 }
+             )
+@@ -263,7 +265,7 @@ class AWSSRP(object):
+                 )
+ 
+             return tokens
+-        else:
++
+         raise NotImplementedError(
+             "The %s challenge is not supported" % response["ChallengeName"]
+         )
+@@ -285,10 +287,13 @@ class AWSSRP(object):
+             )
+ 
+             if tokens["ChallengeName"] == self.NEW_PASSWORD_REQUIRED_CHALLENGE:
+-                challenge_response = {
+-                    "USERNAME": auth_params["USERNAME"],
++                challenge_parameters = response["ChallengeParameters"]
++                challenge_response.update(
++                    {
++                        "USERNAME": challenge_parameters["USERNAME"],
+                         "NEW_PASSWORD": new_password,
+                     }
++                )
+                 new_password_response = boto_client.respond_to_auth_challenge(
+                     ClientId=self.client_id,
+                     ChallengeName=self.NEW_PASSWORD_REQUIRED_CHALLENGE,
+@@ -297,7 +302,7 @@ class AWSSRP(object):
+                 )
+                 return new_password_response
+             return tokens
+-        else:
++
+         raise NotImplementedError(
+             "The %s challenge is not supported" % response["ChallengeName"]
+         )
+diff --git a/warrant/tests.py b/pycognito/tests.py
+index 30fe1cc..5f60333 100644
+--- a/warrant/tests.py
++++ b/pycognito/tests.py
+@@ -2,8 +2,8 @@ import unittest
+ 
+ from botocore.exceptions import ParamValidationError
+ from botocore.stub import Stubber
+-from envs import env
+ from mock import patch
++from envs import env
+ 
+ from __MASKED__ import Cognito, UserObj, GroupObj, TokenVerificationException
+ from __MASKED__.aws_srp import AWSSRP
+@@ -56,10 +56,10 @@ class UserObjTestCase(unittest.TestCase):
+         ]
+ 
+     def test_init(self):
+-        u = UserObj("bjones", self.user_info, self.user, self.user_metadata)
+-        self.assertEqual(u.pk, self.user_metadata.get("username"))
+-        self.assertEqual(u.name, self.user_info[0].get("Value"))
+-        self.assertEqual(u.user_status, self.user_metadata.get("user_status"))
++        user = UserObj("bjones", self.user_info, self.user, self.user_metadata)
++        self.assertEqual(user.username, self.user_metadata.get("username"))
++        self.assertEqual(user.name, self.user_info[0].get("Value"))
++        self.assertEqual(user.user_status, self.user_metadata.get("user_status"))
+ 
+ 
+ class GroupObjTestCase(unittest.TestCase):
+@@ -116,17 +116,12 @@ class CognitoAuthTestCase(unittest.TestCase):
+         with self.assertRaises(TokenVerificationException):
+             self.user.verify_token(bad_access_token, "access_token", "access")
+ 
+-    # def test_logout(self):
+-    #     self.user.authenticate(self.password)
+-    #     self.user.logout()
+-    #     self.assertEqual(self.user.id_token,None)
+-    #     self.assertEqual(self.user.refresh_token,None)
+-    #     self.assertEqual(self.user.access_token,None)
+-
+     @patch("__MASKED__.Cognito", autospec=True)
+     def test_register(self, cognito_user):
+-        u = cognito_user(self.cognito_user_pool_id, self.app_id, username=self.username)
+-        u.add_base_attributes(
++        user = cognito_user(
++            self.cognito_user_pool_id, self.app_id, username=self.username
++        )
++        base_attr = dict(
+             given_name="Brian",
+             family_name="Jones",
+             name="Brian Jones",
+@@ -135,9 +130,9 @@ class CognitoAuthTestCase(unittest.TestCase):
+             gender="Male",
+             preferred_username="billyocean",
+         )
+-        u.register("sampleuser", "sample4#Password")
+ 
+-        # TODO: Write assumptions
++        user.set_base_attributes(**base_attr)
++        user.register("sampleuser", "sample4#Password")
+ 
+     @patch("__MASKED__.aws_srp.AWSSRP.authenticate_user", _mock_authenticate_user)
+     @patch("__MASKED__.Cognito.verify_token", _mock_verify_tokens)
+@@ -161,7 +156,7 @@ class CognitoAuthTestCase(unittest.TestCase):
+             },
+             expected_params={
+                 "ClientId": self.app_id,
+-                "AuthFlow": "REFRESH_TOKEN",
++                "AuthFlow": "REFRESH_TOKEN_AUTH",
+                 "AuthParameters": {"REFRESH_TOKEN": "dummy_token"},
+             },
+         )
+@@ -173,12 +168,13 @@ class CognitoAuthTestCase(unittest.TestCase):
+ 
+     @patch("__MASKED__.Cognito", autospec=True)
+     def test_update_profile(self, cognito_user):
+-        u = cognito_user(self.cognito_user_pool_id, self.app_id, username=self.username)
+-        u.authenticate(self.password)
+-        u.update_profile({"given_name": "Jenkins"})
++        user = cognito_user(
++            self.cognito_user_pool_id, self.app_id, username=self.username
++        )
++        user.authenticate(self.password)
++        user.update_profile({"given_name": "Jenkins"})
+ 
+     def test_admin_get_user(self):
+-
+         stub = Stubber(self.user.client)
+ 
+         stub.add_response(
+@@ -197,7 +193,7 @@ class CognitoAuthTestCase(unittest.TestCase):
+ 
+         with stub:
+             u = self.user.admin_get_user()
+-            self.assertEqual(u.pk, self.username)
++            self.assertEqual(u.username, self.username)
+             stub.assert_no_pending_responses()
+ 
+     def test_check_token(self):
+@@ -249,13 +245,11 @@ class CognitoAuthTestCase(unittest.TestCase):
+             self.user.change_password(self.password, None)
+ 
+     def test_set_attributes(self):
+-        u = Cognito(self.cognito_user_pool_id, self.app_id)
+-        u._set_attributes(
++        user = Cognito(self.cognito_user_pool_id, self.app_id)
++        user._set_attributes(
+             {"ResponseMetadata": {"HTTPStatusCode": 200}}, {"somerandom": "attribute"}
+         )
+-        self.assertEqual(u.somerandom, "attribute")
+-
+-    #
++        self.assertEqual(user.somerandom, "attribute")
+ 
+     @patch("__MASKED__.Cognito.verify_token", _mock_verify_tokens)
+     def test_admin_authenticate(self):
