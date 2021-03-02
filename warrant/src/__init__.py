@@ -58,7 +58,7 @@ def snake_to_camel(snake_str):
     return "".join(x.title() for x in components)
 
 
-class UserObj(object):
+class UserObj:
     def __init__(
         self, username, attribute_list, cognito_obj, metadata=None, attr_map=None
     ):
@@ -110,7 +110,7 @@ class UserObj(object):
         self._cognito.delete_user()
 
 
-class GroupObj(object):
+class GroupObj:
     def __init__(self, group_data, cognito_obj):
         """
         :param group_data: a dictionary with information about a group
@@ -134,7 +134,7 @@ class GroupObj(object):
         )
 
 
-class Cognito(object):
+class Cognito:
     user_class = UserObj
     group_class = GroupObj
 

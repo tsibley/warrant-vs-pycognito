@@ -28,7 +28,7 @@ index 0eb2ead..b490a63 100644
 +pytest==6.2.2
 \ No newline at end of file
 diff --git a/warrant/src/__init__.py b/pycognito/src/__init__.py
-index c008459..ac91e9b 100644
+index 291b6ee..ac91e9b 100644
 --- a/warrant/src/__init__.py
 +++ b/pycognito/src/__init__.py
 @@ -1,11 +1,11 @@
@@ -89,16 +89,7 @@ index c008459..ac91e9b 100644
  
  
  def snake_to_camel(snake_str):
-@@ -58,7 +58,7 @@ def snake_to_camel(snake_str):
-     return "".join(x.title() for x in components)
- 
- 
--class UserObj(object):
-+class UserObj:
-     def __init__(
-         self, username, attribute_list, cognito_obj, metadata=None, attr_map=None
-     ):
-@@ -68,7 +68,6 @@ class UserObj(object):
+@@ -68,7 +68,6 @@ class UserObj:
          :param metadata: Dictionary of User metadata
          """
          self.username = username
@@ -106,7 +97,7 @@ index c008459..ac91e9b 100644
          self._cognito = cognito_obj
          self._attr_map = {} if attr_map is None else attr_map
          self._data = cognito_to_dict(attribute_list, self._attr_map)
-@@ -90,12 +89,13 @@ class UserObj(object):
+@@ -90,12 +89,13 @@ class UserObj:
              return self._data.get(name)
          if name in list(self.__dict__.get("_metadata", {}).keys()):
              return self._metadata.get(name)
@@ -121,26 +112,7 @@ index c008459..ac91e9b 100644
  
      def save(self, admin=False):
          if admin:
-@@ -110,7 +110,7 @@ class UserObj(object):
-         self._cognito.delete_user()
- 
- 
--class GroupObj(object):
-+class GroupObj:
-     def __init__(self, group_data, cognito_obj):
-         """
-         :param group_data: a dictionary with information about a group
-@@ -134,7 +134,8 @@ class GroupObj(object):
-         )
- 
- 
--class Cognito(object):
-+class Cognito:
-+
-     user_class = UserObj
-     group_class = GroupObj
- 
-@@ -150,6 +151,8 @@ class Cognito(object):
+@@ -150,6 +151,8 @@ class Cognito:
          client_secret=None,
          access_key=None,
          secret_key=None,
@@ -149,7 +121,7 @@ index c008459..ac91e9b 100644
      ):
          """
          :param user_pool_id: Cognito User Pool ID
-@@ -160,6 +163,8 @@ class Cognito(object):
+@@ -160,6 +163,8 @@ class Cognito:
          :param access_token: Access Token returned by authentication
          :param access_key: AWS IAM access key
          :param secret_key: AWS IAM secret key
@@ -158,7 +130,7 @@ index c008459..ac91e9b 100644
          """
  
          self.user_pool_id = user_pool_id
-@@ -173,6 +178,8 @@ class Cognito(object):
+@@ -173,6 +178,8 @@ class Cognito:
          self.refresh_token = refresh_token
          self.client_secret = client_secret
          self.token_type = None
@@ -167,7 +139,7 @@ index c008459..ac91e9b 100644
          self.custom_attributes = None
          self.base_attributes = None
          self.pool_jwk = None
-@@ -183,24 +190,30 @@ class Cognito(object):
+@@ -183,24 +190,30 @@ class Cognito:
              boto3_client_kwargs["aws_secret_access_key"] = secret_key
          if self.user_pool_region:
              boto3_client_kwargs["region_name"] = self.user_pool_region
@@ -205,7 +177,7 @@ index c008459..ac91e9b 100644
              ).json()
          return self.pool_jwk
  
-@@ -209,24 +222,47 @@ class Cognito(object):
+@@ -209,24 +222,47 @@ class Cognito:
          key = list(filter(lambda x: x.get("kid") == kid, keys))
          return key[0]
  
@@ -260,7 +232,7 @@ index c008459..ac91e9b 100644
          return verified
  
      def get_user_obj(
-@@ -287,7 +323,7 @@ class Cognito(object):
+@@ -287,7 +323,7 @@ class Cognito:
              expired = False
          return expired
  
@@ -269,7 +241,7 @@ index c008459..ac91e9b 100644
          self.base_attributes = kwargs
  
      def add_custom_attributes(self, **kwargs):
-@@ -322,6 +358,9 @@ class Cognito(object):
+@@ -322,6 +358,9 @@ class Cognito:
              }
          }
          """
@@ -279,7 +251,7 @@ index c008459..ac91e9b 100644
              attributes = self.base_attributes.copy()
          if self.custom_attributes:
              attributes.update(self.custom_attributes)
-@@ -388,13 +428,7 @@ class Cognito(object):
+@@ -388,13 +428,7 @@ class Cognito:
              AuthFlow="ADMIN_NO_SRP_AUTH",
              AuthParameters=auth_params,
          )
@@ -294,7 +266,7 @@ index c008459..ac91e9b 100644
  
      def authenticate(self, password):
          """
-@@ -411,18 +445,13 @@ class Cognito(object):
+@@ -411,18 +445,13 @@ class Cognito:
              client_secret=self.client_secret,
          )
          tokens = aws.authenticate_user()
@@ -315,7 +287,7 @@ index c008459..ac91e9b 100644
          """
          aws = AWSSRP(
              username=self.username,
-@@ -433,10 +462,7 @@ class Cognito(object):
+@@ -433,10 +462,7 @@ class Cognito:
              client_secret=self.client_secret,
          )
          tokens = aws.set_new_password_challenge(new_password)
@@ -327,7 +299,7 @@ index c008459..ac91e9b 100644
  
      def logout(self):
          """
-@@ -499,12 +525,21 @@ class Cognito(object):
+@@ -499,12 +525,21 @@ class Cognito:
          """
          Returns all users for a user pool. Returns instances of the
          self.user_class.
@@ -353,7 +325,7 @@ index c008459..ac91e9b 100644
          return [
              self.get_user_obj(
                  user.get("Username"),
-@@ -512,7 +547,7 @@ class Cognito(object):
+@@ -512,7 +547,7 @@ class Cognito:
                  metadata={"username": user.get("Username")},
                  attr_map=attr_map,
              )
@@ -362,7 +334,7 @@ index c008459..ac91e9b 100644
          ]
  
      def admin_get_user(self, attr_map=None):
-@@ -595,18 +630,10 @@ class Cognito(object):
+@@ -595,18 +630,10 @@ class Cognito:
          self._add_secret_hash(auth_params, "SECRET_HASH")
          refresh_response = self.client.initiate_auth(
              ClientId=self.client_id,
@@ -383,7 +355,7 @@ index c008459..ac91e9b 100644
  
      def initiate_forgot_password(self):
          """
-@@ -625,6 +652,13 @@ class Cognito(object):
+@@ -625,6 +652,13 @@ class Cognito:
              UserPoolId=self.user_pool_id, Username=self.username
          )
  
@@ -397,7 +369,7 @@ index c008459..ac91e9b 100644
      def confirm_forgot_password(self, confirmation_code, password):
          """
          Allows a user to enter a code provided when they reset their password
-@@ -666,6 +700,19 @@ class Cognito(object):
+@@ -666,6 +700,19 @@ class Cognito:
              )
              parameters[key] = secret_hash
  
@@ -417,7 +389,7 @@ index c008459..ac91e9b 100644
      def _set_attributes(self, response, attribute_dict):
          """
          Set user attributes based on response code
-@@ -676,8 +723,8 @@ class Cognito(object):
+@@ -676,8 +723,8 @@ class Cognito:
              "HTTPStatusCode", response["ResponseMetadata"]["HTTPStatusCode"]
          )
          if status_code == 200:
@@ -428,7 +400,7 @@ index c008459..ac91e9b 100644
  
      def get_group(self, group_name):
          """
-@@ -698,3 +745,81 @@ class Cognito(object):
+@@ -698,3 +745,81 @@ class Cognito:
          """
          response = self.client.list_groups(UserPoolId=self.user_pool_id)
          return [self.get_group_obj(group_data) for group_data in response.get("Groups")]
@@ -511,19 +483,10 @@ index c008459..ac91e9b 100644
 +            Username=self.username,
 +        )
 diff --git a/warrant/src/aws_srp.py b/pycognito/src/aws_srp.py
-index 4616742..42fda72 100644
+index 2bc21f1..42fda72 100644
 --- a/warrant/src/aws_srp.py
 +++ b/pycognito/src/aws_srp.py
-@@ -100,7 +100,7 @@ def calculate_u(big_a, big_b):
-     return hex_to_long(u_hex_hash)
- 
- 
--class AWSSRP(object):
-+class AWSSRP:
- 
-     NEW_PASSWORD_REQUIRED_CHALLENGE = "NEW_PASSWORD_REQUIRED"
-     PASSWORD_VERIFIER_CHALLENGE = "PASSWORD_VERIFIER"
-@@ -203,6 +203,7 @@ class AWSSRP(object):
+@@ -203,6 +203,7 @@ class AWSSRP:
          return base64.standard_b64encode(hmac_obj.digest()).decode("utf-8")
  
      def process_challenge(self, challenge_parameters):
@@ -531,7 +494,7 @@ index 4616742..42fda72 100644
          user_id_for_srp = challenge_parameters["USER_ID_FOR_SRP"]
          salt_hex = challenge_parameters["SALT"]
          srp_b_hex = challenge_parameters["SRP_B"]
-@@ -227,7 +229,7 @@ class AWSSRP(object):
+@@ -227,7 +229,7 @@ class AWSSRP:
          signature_string = base64.standard_b64encode(hmac_obj.digest())
          response = {
              "TIMESTAMP": timestamp,
@@ -540,7 +503,7 @@ index 4616742..42fda72 100644
              "PASSWORD_CLAIM_SECRET_BLOCK": secret_block_b64,
              "PASSWORD_CLAIM_SIGNATURE": signature_string.decode("utf-8"),
          }
-@@ -235,7 +237,7 @@ class AWSSRP(object):
+@@ -235,7 +237,7 @@ class AWSSRP:
              response.update(
                  {
                      "SECRET_HASH": self.get_secret_hash(
@@ -549,7 +512,7 @@ index 4616742..42fda72 100644
                      )
                  }
              )
-@@ -263,7 +265,7 @@ class AWSSRP(object):
+@@ -263,7 +265,7 @@ class AWSSRP:
                  )
  
              return tokens
@@ -558,7 +521,7 @@ index 4616742..42fda72 100644
          raise NotImplementedError(
              "The %s challenge is not supported" % response["ChallengeName"]
          )
-@@ -285,10 +287,13 @@ class AWSSRP(object):
+@@ -285,10 +287,13 @@ class AWSSRP:
              )
  
              if tokens["ChallengeName"] == self.NEW_PASSWORD_REQUIRED_CHALLENGE:
@@ -574,7 +537,7 @@ index 4616742..42fda72 100644
                  new_password_response = boto_client.respond_to_auth_challenge(
                      ClientId=self.client_id,
                      ChallengeName=self.NEW_PASSWORD_REQUIRED_CHALLENGE,
-@@ -297,7 +302,7 @@ class AWSSRP(object):
+@@ -297,7 +302,7 @@ class AWSSRP:
                  )
                  return new_password_response
              return tokens
