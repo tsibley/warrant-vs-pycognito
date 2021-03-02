@@ -90,6 +90,23 @@ index c4f5d11..6077067 100644
                      ClientId=self.client_id,
 ```
 
+### Features
+
+pyCognito does more stringent verification of JWTs received from Cognito after
+authentication and provides methods for re-performing that verification if
+you've restored the tokens from external storage.  While the secure
+cryptographic signature still provides a good level of assurance and we can
+broadly trust AWS, in security code it's often better to be exceedingly
+stringent.  (Disclaimer: I contributed this code.)
+
+pyCognito provides easy access to the verified claims in the id and access
+tokens.  (Disclaimer: I contributed this code.)
+
+pyCognito paginates the `get_users()` method so it actually returns all users
+in a large pool.
+
+pyCognito supports several admin actions/methods that Warrant does not.
+
 ### Tests
 
 The tests are largely the same and don't appear to meaningfully differ in
