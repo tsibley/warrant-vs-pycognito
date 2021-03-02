@@ -1,5 +1,5 @@
 class WarrantException(Exception):
-    """Base class for all Warrant exceptions"""
+    """Base class for all __MASKED__ exceptions"""
 
 
 class ForceChangePasswordException(WarrantException):

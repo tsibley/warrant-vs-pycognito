@@ -5,8 +5,8 @@ from botocore.stub import Stubber
 from mock import patch
 from envs import env
 
-from pycognito import Cognito, UserObj, GroupObj, TokenVerificationException
-from pycognito.aws_srp import AWSSRP
+from __MASKED__ import Cognito, UserObj, GroupObj, TokenVerificationException
+from __MASKED__.aws_srp import AWSSRP
 
 
 def _mock_authenticate_user(_, client=None):
@@ -98,8 +98,8 @@ class CognitoAuthTestCase(unittest.TestCase):
             client_secret=self.client_secret,
         )
 
-    @patch("pycognito.aws_srp.AWSSRP.authenticate_user", _mock_authenticate_user)
-    @patch("pycognito.Cognito.verify_token", _mock_verify_tokens)
+    @patch("__MASKED__.aws_srp.AWSSRP.authenticate_user", _mock_authenticate_user)
+    @patch("__MASKED__.Cognito.verify_token", _mock_verify_tokens)
     def test_authenticate(self):
 
         self.user.authenticate(self.password)
@@ -107,8 +107,8 @@ class CognitoAuthTestCase(unittest.TestCase):
         self.assertNotEqual(self.user.id_token, None)
         self.assertNotEqual(self.user.refresh_token, None)
 
-    @patch("pycognito.aws_srp.AWSSRP.authenticate_user", _mock_authenticate_user)
-    @patch("pycognito.Cognito.verify_token", _mock_verify_tokens)
+    @patch("__MASKED__.aws_srp.AWSSRP.authenticate_user", _mock_authenticate_user)
+    @patch("__MASKED__.Cognito.verify_token", _mock_verify_tokens)
     def test_verify_token(self):
         self.user.authenticate(self.password)
         bad_access_token = "{}wrong".format(self.user.access_token)
@@ -116,7 +116,7 @@ class CognitoAuthTestCase(unittest.TestCase):
         with self.assertRaises(TokenVerificationException):
             self.user.verify_token(bad_access_token, "access_token", "access")
 
-    @patch("pycognito.Cognito", autospec=True)
+    @patch("__MASKED__.Cognito", autospec=True)
     def test_register(self, cognito_user):
         user = cognito_user(
             self.cognito_user_pool_id, self.app_id, username=self.username
@@ -134,9 +134,9 @@ class CognitoAuthTestCase(unittest.TestCase):
         user.set_base_attributes(**base_attr)
         user.register("sampleuser", "sample4#Password")
 
-    @patch("pycognito.aws_srp.AWSSRP.authenticate_user", _mock_authenticate_user)
-    @patch("pycognito.Cognito.verify_token", _mock_verify_tokens)
-    @patch("pycognito.Cognito._add_secret_hash", return_value=None)
+    @patch("__MASKED__.aws_srp.AWSSRP.authenticate_user", _mock_authenticate_user)
+    @patch("__MASKED__.Cognito.verify_token", _mock_verify_tokens)
+    @patch("__MASKED__.Cognito._add_secret_hash", return_value=None)
     def test_renew_tokens(self, _):
 
         stub = Stubber(self.user.client)
@@ -166,7 +166,7 @@ class CognitoAuthTestCase(unittest.TestCase):
             self.user.renew_access_token()
             stub.assert_no_pending_responses()
 
-    @patch("pycognito.Cognito", autospec=True)
+    @patch("__MASKED__.Cognito", autospec=True)
     def test_update_profile(self, cognito_user):
         user = cognito_user(
             self.cognito_user_pool_id, self.app_id, username=self.username
@@ -205,21 +205,21 @@ class CognitoAuthTestCase(unittest.TestCase):
         )
         self.assertFalse(self.user.check_token())
 
-    @patch("pycognito.Cognito", autospec=True)
+    @patch("__MASKED__.Cognito", autospec=True)
     def test_validate_verification(self, cognito_user):
         u = cognito_user(self.cognito_user_pool_id, self.app_id, username=self.username)
         u.validate_verification("4321")
 
-    @patch("pycognito.Cognito", autospec=True)
+    @patch("__MASKED__.Cognito", autospec=True)
     def test_confirm_forgot_password(self, cognito_user):
         u = cognito_user(self.cognito_user_pool_id, self.app_id, username=self.username)
         u.confirm_forgot_password("4553", "samplepassword")
         with self.assertRaises(TypeError):
             u.confirm_forgot_password(self.password)
 
-    @patch("pycognito.aws_srp.AWSSRP.authenticate_user", _mock_authenticate_user)
-    @patch("pycognito.Cognito.verify_token", _mock_verify_tokens)
-    @patch("pycognito.Cognito.check_token", return_value=True)
+    @patch("__MASKED__.aws_srp.AWSSRP.authenticate_user", _mock_authenticate_user)
+    @patch("__MASKED__.Cognito.verify_token", _mock_verify_tokens)
+    @patch("__MASKED__.Cognito.check_token", return_value=True)
     def test_change_password(self, _):
         # u = cognito_user(self.cognito_user_pool_id, self.app_id,
         #                  username=self.username)
@@ -251,7 +251,7 @@ class CognitoAuthTestCase(unittest.TestCase):
         )
         self.assertEqual(user.somerandom, "attribute")
 
-    @patch("pycognito.Cognito.verify_token", _mock_verify_tokens)
+    @patch("__MASKED__.Cognito.verify_token", _mock_verify_tokens)
     def test_admin_authenticate(self):
 
         stub = Stubber(self.user.client)
@@ -310,8 +310,8 @@ class AWSSRPTestCase(unittest.TestCase):
     def tearDown(self):
         del self.aws
 
-    @patch("pycognito.aws_srp.AWSSRP.get_auth_params", _mock_get_params)
-    @patch("pycognito.aws_srp.AWSSRP.process_challenge", return_value={})
+    @patch("__MASKED__.aws_srp.AWSSRP.get_auth_params", _mock_get_params)
+    @patch("__MASKED__.aws_srp.AWSSRP.process_challenge", return_value={})
     def test_authenticate_user(self, _):
 
         stub = Stubber(self.aws.client)
