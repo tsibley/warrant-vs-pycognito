@@ -97,3 +97,10 @@ functionality.  Both libraries have woefully poor tests for code involved in
 authentication.  There are too many mocks of critical code and no actual
 coverage or functionality tested.  The tests mostly test themselves or very
 small units of library code, with no integration or end-to-end testing.
+
+### Dependencies
+
+pyCognito requires a newer minimum version of `python-jose[cryptography]`,
+which is the library used for verifying JWTs.  Warrant pins to an older
+version.  There may be no meaningful difference, but in general it's best to
+stay current on security libraries.
