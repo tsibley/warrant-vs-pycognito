@@ -8,7 +8,7 @@ The commit history in this repo detail how the source of each was transformed
 to make comparison more informative, as well as the git commit ids of the
 initial unmodified sources being compared.
 
-## Notable differences
+## Notes
 
 ### SRP challenge response
 
@@ -89,3 +89,11 @@ index c4f5d11..6077067 100644
                  new_password_response = boto_client.respond_to_auth_challenge(
                      ClientId=self.client_id,
 ```
+
+### Tests
+
+The tests are largely the same and don't appear to meaningfully differ in
+functionality.  Both libraries have woefully poor tests for code involved in
+authentication.  There are too many mocks of critical code and no actual
+coverage or functionality tested.  The tests mostly test themselves or very
+small units of library code, with no integration or end-to-end testing.
