@@ -139,45 +139,51 @@ index 291b6ee..ac91e9b 100644
          self.custom_attributes = None
          self.base_attributes = None
          self.pool_jwk = None
-@@ -183,24 +190,30 @@ class Cognito:
+@@ -183,50 +190,79 @@ class Cognito:
              boto3_client_kwargs["aws_secret_access_key"] = secret_key
          if self.user_pool_region:
              boto3_client_kwargs["region_name"] = self.user_pool_region
 +        if botocore_config:
 +            boto3_client_kwargs["config"] = botocore_config
  
+-        self.client = boto3.client("cognito-idp", **boto3_client_kwargs)
 +        if session:
 +            self.client = session.client("cognito-idp", **boto3_client_kwargs)
 +        else:
-             self.client = boto3.client("cognito-idp", **boto3_client_kwargs)
- 
++            self.client = boto3.client("cognito-idp", **boto3_client_kwargs)
++
 +    @property
 +    def user_pool_url(self):
 +        return f"https://cognito-idp.{self.user_pool_region}.amazonaws.com/{self.user_pool_id}"
-+
+ 
      def get_keys(self):
 -
          if self.pool_jwk:
              return self.pool_jwk
--        else:
 +
-         # Check for the dictionary in environment variables.
-         pool_jwk_env = env("COGNITO_JWKS", {}, var_type="dict")
--            if len(pool_jwk_env.keys()) > 0:
++        # Check for the dictionary in environment variables.
++        pool_jwk_env = env("COGNITO_JWKS", {}, var_type="dict")
 +        if pool_jwk_env:
-             self.pool_jwk = pool_jwk_env
++            self.pool_jwk = pool_jwk_env
++        # If it is not there use the requests library to get it
+         else:
+-            # Check for the dictionary in environment variables.
+-            pool_jwk_env = env("COGNITO_JWKS", {}, var_type="dict")
+-            if len(pool_jwk_env.keys()) > 0:
+-                self.pool_jwk = pool_jwk_env
 -                return self.pool_jwk
-         # If it is not there use the requests library to get it
-+        else:
+-            # If it is not there use the requests library to get it
              self.pool_jwk = requests.get(
 -                "https://cognito-idp.{}.amazonaws.com/{}/.well-known/jwks.json".format(
 -                    self.user_pool_region, self.user_pool_id
 -                )
 +                f"{self.user_pool_url}/.well-known/jwks.json"
              ).json()
-         return self.pool_jwk
+-            return self.pool_jwk
++        return self.pool_jwk
  
-@@ -209,24 +222,47 @@ class Cognito:
+     def get_key(self, kid):
+         keys = self.get_keys().get("keys")
          key = list(filter(lambda x: x.get("kid") == kid, keys))
          return key[0]
  
@@ -241,16 +247,21 @@ index 291b6ee..ac91e9b 100644
          self.base_attributes = kwargs
  
      def add_custom_attributes(self, **kwargs):
-@@ -322,6 +358,9 @@ class Cognito:
+@@ -322,9 +358,13 @@ class Cognito:
              }
          }
          """
+-        attributes = self.base_attributes.copy()
 +        if self.base_attributes is None:
 +            attributes = {}
 +        else:
-             attributes = self.base_attributes.copy()
++            attributes = self.base_attributes.copy()
          if self.custom_attributes:
              attributes.update(self.custom_attributes)
++
+         cognito_attributes = dict_to_cognito(attributes, attr_map)
+         params = {
+             "ClientId": self.client_id,
 @@ -388,13 +428,7 @@ class Cognito:
              AuthFlow="ADMIN_NO_SRP_AUTH",
              AuthParameters=auth_params,
@@ -512,27 +523,35 @@ index 2bc21f1..42fda72 100644
                      )
                  }
              )
-@@ -263,7 +265,7 @@ class AWSSRP:
+@@ -263,10 +265,10 @@ class AWSSRP:
                  )
  
              return tokens
 -        else:
+-            raise NotImplementedError(
+-                "The %s challenge is not supported" % response["ChallengeName"]
+-            )
 +
-         raise NotImplementedError(
-             "The %s challenge is not supported" % response["ChallengeName"]
-         )
++        raise NotImplementedError(
++            "The %s challenge is not supported" % response["ChallengeName"]
++        )
+ 
+     def set_new_password_challenge(self, new_password, client=None):
+         boto_client = self.client or client
 @@ -285,10 +287,13 @@ class AWSSRP:
              )
  
              if tokens["ChallengeName"] == self.NEW_PASSWORD_REQUIRED_CHALLENGE:
 -                challenge_response = {
 -                    "USERNAME": auth_params["USERNAME"],
+-                    "NEW_PASSWORD": new_password,
+-                }
 +                challenge_parameters = response["ChallengeParameters"]
 +                challenge_response.update(
 +                    {
 +                        "USERNAME": challenge_parameters["USERNAME"],
-                         "NEW_PASSWORD": new_password,
-                     }
++                        "NEW_PASSWORD": new_password,
++                    }
 +                )
                  new_password_response = boto_client.respond_to_auth_challenge(
                      ClientId=self.client_id,
@@ -542,10 +561,13 @@ index 2bc21f1..42fda72 100644
                  return new_password_response
              return tokens
 -        else:
+-            raise NotImplementedError(
+-                "The %s challenge is not supported" % response["ChallengeName"]
+-            )
 +
-         raise NotImplementedError(
-             "The %s challenge is not supported" % response["ChallengeName"]
-         )
++        raise NotImplementedError(
++            "The %s challenge is not supported" % response["ChallengeName"]
++        )
 diff --git a/warrant/tests.py b/pycognito/tests.py
 index 30fe1cc..5f60333 100644
 --- a/warrant/tests.py
