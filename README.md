@@ -1,8 +1,8 @@
 # Warrant vs. pyCognito
 
 Warrant and pyCognito are two Python libraries for talking to AWS Cognito.  The
-latter is a fork of the former, and this repo is supporting material for
-comparing where they've diverged (at least as of this moment in time).
+latter is a fork of the former, and this repo compares how they've diverged (at
+least as of this moment in time).
 
 The commit history in this repo detail how the source of each was transformed
 to make comparison more informative, as well as the git commit ids of the
@@ -106,6 +106,8 @@ pyCognito paginates the `get_users()` method so it actually returns all users
 in a large pool.
 
 pyCognito supports several admin actions/methods that Warrant does not.
+
+Warrant supports Python 2.  pyCognito does not.
 
 ### Tests
 
